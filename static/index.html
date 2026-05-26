@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Live Translation · Gemini 3.1 Flash Lite</title>
+    <style>
+        :root {
+            --bg: #f4f6fa;
+            --card: #ffffff;
+            --ink: #1f2933;
+            --muted: #6b7280;
+            --accent: #4f46e5;
+            --accent-dark: #3730a3;
+            --user-bubble: #dcf8c6;
+            --bot-bubble: #ffffff;
+            --info-bubble: #e3f2fd;
+            --nav-bg: #1f2937;
+            --nav-ink: #f9fafb;
+            --nav-section: #94a3b8;
+            --pill-bg: #374151;
+            --ok: #22c55e;
+            --warn: #f59e0b;
+            --err: #ef4444;
+        }
+        * { box-sizing: border-box; }
+        html, body { height: 100%; margin: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                "Helvetica Neue", Arial, sans-serif;
+            background: var(--bg);
+            color: var(--ink);
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* ----- Main column ----- */
+        #main {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-width: 0;
+            height: 100vh;
+        }
+        #main header {
+            padding: 14px 24px;
+            background: var(--card);
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        #main header h1 {
+            font-size: 18px;
+            margin: 0;
+            font-weight: 600;
+        }
+        #main header .subtitle {
+            color: var(--muted);
+            font-size: 13px;
+        }
+        #chat {
+            flex: 1;
+            overflow-y: auto;
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .message {
+            max-width: 75%;
+            padding: 10px 14px;
+            border-radius: 14px;
+            line-height: 1.4;
+            font-size: 15px;
+            word-wrap: break-word;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+        }
+        .message .label {
+            display: block;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--muted);
+            margin-bottom: 4px;
+        }
+        .user-message {
+            background: var(--user-bubble);
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+        }
+        .bot-message {
+            background: var(--bot-bubble);
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+        }
+        .info-message {
+            background: var(--info-bubble);
+            align-self: center;
+            font-size: 13px;
+            color: #1e3a8a;
+        }
+        .message audio {
+            margin-top: 8px;
+            width: 100%;
+            outline: none;
+        }
+        #controls {
+            background: var(--card);
+            border-top: 1px solid #e5e7eb;
+            padding: 14px;
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            align-items: center;
+        }
+        button.primary {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 10px 22px;
+            border-radius: 8px;
+            font-size: 15px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        button.primary:hover:not(:disabled) { background: var(--accent-dark); }
+        button.primary.danger { background: #dc2626; }
+        button.primary.danger:hover:not(:disabled) { background: #991b1b; }
+        button:disabled { background: #cbd5e1; cursor: not-allowed; color: #475569; }
+        .vad-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            color: var(--muted);
+        }
+        .vad-dot {
+            width: 10px; height: 10px; border-radius: 50%;
+            background: #cbd5e1;
+            transition: background 0.15s ease;
+        }
+        .vad-dot.speech { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+        .vad-dot.pause  { background: var(--warn); box-shadow: 0 0 6px var(--warn); }
+
+        /* ----- Sidebar ----- */
+        #sidebar {
+            width: 290px;
+            min-width: 290px;
+            background: var(--nav-bg);
+            color: var(--nav-ink);
+            padding: 18px 16px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+        #sidebar h2 {
+            font-size: 15px;
+            margin: 0;
+            text-align: center;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #374151;
+        }
+        .section-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            color: var(--nav-section);
+            margin-bottom: 6px;
+        }
+        .pill {
+            background: var(--pill-bg);
+            padding: 6px 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .pill .dot {
+            width: 10px; height: 10px; border-radius: 50%;
+            background: #9ca3af;
+            flex-shrink: 0;
+            box-shadow: 0 0 4px rgba(0,0,0,0.4);
+        }
+        .pill.connected   .dot { background: var(--ok);   box-shadow: 0 0 6px var(--ok); }
+        .pill.disconnected .dot { background: var(--err); box-shadow: 0 0 6px var(--err); }
+        .pill.connecting  .dot {
+            background: var(--warn); box-shadow: 0 0 6px var(--warn);
+            animation: pulse 1.2s infinite ease-in-out;
+        }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+        #sidebar select,
+        #sidebar input[type="text"],
+        #sidebar button.side-btn {
+            width: 100%;
+            padding: 8px 10px;
+            font-size: 13px;
+            border-radius: 6px;
+            border: none;
+            box-sizing: border-box;
+            font-family: inherit;
+        }
+        #sidebar select,
+        #sidebar input[type="text"] {
+            background: #f9fafb; color: var(--ink);
+        }
+        #sidebar button.side-btn {
+            background: var(--accent);
+            color: white;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        #sidebar button.side-btn:hover { background: var(--accent-dark); }
+
+        .toggle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--pill-bg);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+        }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 38px;
+            height: 20px;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute; cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #6b7280;
+            transition: 0.2s;
+            border-radius: 20px;
+        }
+        .slider:before {
+            position: absolute; content: "";
+            height: 16px; width: 16px;
+            left: 2px; bottom: 2px;
+            background-color: white;
+            transition: 0.2s;
+            border-radius: 50%;
+        }
+        .switch input:checked + .slider { background-color: var(--ok); }
+        .switch input:checked + .slider:before { transform: translateX(18px); }
+    </style>
+</head>
+<body>
+    <!-- ===== Main ===== -->
+    <main id="main">
+        <header>
+            <h1>🎙 Live Translation</h1>
+            <span class="subtitle">Gemini 3.1 Flash Lite · DeepFilterNet v3 VAD</span>
+        </header>
+
+        <div id="chat"></div>
+
+        <div id="controls">
+            <span class="vad-indicator">
+                <span id="vadDot" class="vad-dot"></span>
+                <span id="vadLabel">Idle</span>
+            </span>
+            <button id="startBtn" class="primary">Start Recording</button>
+            <button id="stopBtn" class="primary danger" disabled>Stop</button>
+        </div>
+    </main>
+
+    <!-- ===== Sidebar ===== -->
+    <aside id="sidebar">
+        <h2>⚙ Settings</h2>
+
+        <div>
+            <div class="section-label">WebSocket</div>
+            <div class="pill disconnected" id="wsPill">
+                <span class="dot"></span><span id="wsLabel">Disconnected</span>
+            </div>
+        </div>
+
+        <div>
+            <div class="section-label">Google Cloud Project</div>
+            <input type="text" id="projectInput" placeholder="my-gcp-project" />
+        </div>
+
+        <div>
+            <div class="section-label">Gemini 3.1 Region</div>
+            <select id="regionSelect">
+                <option value="global" selected>global</option>
+                <option value="us-central1">us-central1</option>
+                <option value="us-east4">us-east4</option>
+                <option value="us-east5">us-east5</option>
+                <option value="us-south1">us-south1</option>
+                <option value="us-west1">us-west1</option>
+                <option value="us-west4">us-west4</option>
+                <option value="europe-west1">europe-west1</option>
+                <option value="europe-west2">europe-west2</option>
+                <option value="europe-west3">europe-west3</option>
+                <option value="europe-west4">europe-west4</option>
+                <option value="europe-west8">europe-west8</option>
+                <option value="europe-west9">europe-west9</option>
+                <option value="europe-southwest1">europe-southwest1</option>
+                <option value="europe-central2">europe-central2</option>
+                <option value="asia-east1">asia-east1</option>
+                <option value="asia-east2">asia-east2</option>
+                <option value="asia-northeast1">asia-northeast1</option>
+                <option value="asia-northeast3">asia-northeast3</option>
+                <option value="asia-south1">asia-south1</option>
+                <option value="asia-southeast1">asia-southeast1</option>
+                <option value="australia-southeast1">australia-southeast1</option>
+                <option value="southamerica-east1">southamerica-east1</option>
+            </select>
+        </div>
+
+        <div>
+            <div class="section-label">Input language</div>
+            <select id="srcLangSelect"></select>
+        </div>
+
+        <div>
+            <div class="section-label">Output language</div>
+            <select id="tgtLangSelect"></select>
+        </div>
+
+        <div class="toggle">
+            <span>🔊 Generate audio (TTS)</span>
+            <label class="switch">
+                <input type="checkbox" id="ttsToggle" />
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <div>
+            <div class="section-label">TTS region</div>
+            <select id="ttsRegionSelect">
+                <!-- gemini-3.1-flash-tts-preview is only served from the
+                     global endpoint at the moment. -->
+                <option value="global" selected>global</option>
+            </select>
+        </div>
+
+        <div>
+            <div class="section-label">TTS voice</div>
+            <select id="ttsVoiceSelect">
+                <!-- 30 prebuilt voices supported by gemini-3.1-flash-tts-preview
+                     (shared with the Gemini 2.5 native TTS voice set). -->
+                <option value="Zephyr">Zephyr — Bright</option>
+                <option value="Puck">Puck — Upbeat</option>
+                <option value="Charon">Charon — Informative</option>
+                <option value="Kore" selected>Kore — Firm</option>
+                <option value="Fenrir">Fenrir — Excitable</option>
+                <option value="Leda">Leda — Youthful</option>
+                <option value="Orus">Orus — Firm</option>
+                <option value="Aoede">Aoede — Breezy</option>
+                <option value="Callirrhoe">Callirrhoe — Easy-going</option>
+                <option value="Autonoe">Autonoe — Bright</option>
+                <option value="Enceladus">Enceladus — Breathy</option>
+                <option value="Iapetus">Iapetus — Clear</option>
+                <option value="Umbriel">Umbriel — Easy-going</option>
+                <option value="Algieba">Algieba — Smooth</option>
+                <option value="Despina">Despina — Smooth</option>
+                <option value="Erinome">Erinome — Clear</option>
+                <option value="Algenib">Algenib — Gravelly</option>
+                <option value="Rasalgethi">Rasalgethi — Informative</option>
+                <option value="Laomedeia">Laomedeia — Upbeat</option>
+                <option value="Achernar">Achernar — Soft</option>
+                <option value="Alnilam">Alnilam — Firm</option>
+                <option value="Schedar">Schedar — Even</option>
+                <option value="Gacrux">Gacrux — Mature</option>
+                <option value="Pulcherrima">Pulcherrima — Forward</option>
+                <option value="Achird">Achird — Friendly</option>
+                <option value="Zubenelgenubi">Zubenelgenubi — Casual</option>
+                <option value="Vindemiatrix">Vindemiatrix — Gentle</option>
+                <option value="Sadachbia">Sadachbia — Lively</option>
+                <option value="Sadaltager">Sadaltager — Knowledgeable</option>
+                <option value="Sulafat">Sulafat — Warm</option>
+            </select>
+        </div>
+
+        <button id="applyBtn" class="side-btn">Apply Settings</button>
+    </aside>
+
+    <script>
+    // ---------------- Language list (BCP-47) ----------------
+    // The list below is the set of languages officially supported by
+    // gemini-3.1-flash-tts-preview (same 24-language matrix that Google
+    // documents for the Gemini 2.5 native TTS family) plus Chinese
+    // (Simplified) which is the default output language for this app.
+    const LANGUAGES = [
+        ["zh-CN", "Chinese (Simplified)"],
+        ["en-US", "English (United States)"],
+        ["en-IN", "English (India)"],
+        ["es-US", "Spanish (United States)"],
+        ["fr-FR", "French (France)"],
+        ["de-DE", "German (Germany)"],
+        ["it-IT", "Italian (Italy)"],
+        ["pt-BR", "Portuguese (Brazil)"],
+        ["nl-NL", "Dutch (Netherlands)"],
+        ["pl-PL", "Polish (Poland)"],
+        ["ro-RO", "Romanian (Romania)"],
+        ["ru-RU", "Russian (Russia)"],
+        ["uk-UA", "Ukrainian (Ukraine)"],
+        ["tr-TR", "Turkish (Turkey)"],
+        ["ar-EG", "Arabic (Egypt)"],
+        ["hi-IN", "Hindi (India)"],
+        ["bn-BD", "Bengali (Bangladesh)"],
+        ["mr-IN", "Marathi (India)"],
+        ["ta-IN", "Tamil (India)"],
+        ["te-IN", "Telugu (India)"],
+        ["id-ID", "Indonesian (Indonesia)"],
+        ["th-TH", "Thai (Thailand)"],
+        ["vi-VN", "Vietnamese (Vietnam)"],
+        ["ja-JP", "Japanese (Japan)"],
+        ["ko-KR", "Korean (Korea)"],
+    ];
+
+    const srcLangSelect = document.getElementById('srcLangSelect');
+    const tgtLangSelect = document.getElementById('tgtLangSelect');
+    for (const [code, name] of LANGUAGES) {
+        srcLangSelect.add(new Option(name, code, code === 'en-US', code === 'en-US'));
+        tgtLangSelect.add(new Option(name, code, code === 'zh-CN', code === 'zh-CN'));
+    }
+
+    // ---------------- DOM refs ----------------
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const applyBtn = document.getElementById('applyBtn');
+    const wsPill = document.getElementById('wsPill');
+    const wsLabel = document.getElementById('wsLabel');
+    const projectInput = document.getElementById('projectInput');
+    const regionSelect = document.getElementById('regionSelect');
+    const ttsRegionSelect = document.getElementById('ttsRegionSelect');
+    const ttsVoiceSelect = document.getElementById('ttsVoiceSelect');
+    const ttsToggle = document.getElementById('ttsToggle');
+    const chat = document.getElementById('chat');
+    const vadDot = document.getElementById('vadDot');
+    const vadLabel = document.getElementById('vadLabel');
+
+    // ---------------- WebSocket ----------------
+    let socket = null;
+    let reconnectTimer = null;
+    let pendingAudioHeader = null;   // sample_rate of next binary frame
+
+    const setWsStatus = (state, label) => {
+        wsPill.classList.remove('connected', 'disconnected', 'connecting');
+        wsPill.classList.add(state);
+        wsLabel.textContent = label;
+    };
+
+    const setVad = (state) => {
+        vadDot.classList.remove('speech', 'pause');
+        if (state === 'speech')      { vadDot.classList.add('speech'); vadLabel.textContent = 'Speaking'; }
+        else if (state === 'pause')  { vadDot.classList.add('pause');  vadLabel.textContent = 'Pause detected'; }
+        else if (state === 'idle')   { vadLabel.textContent = 'Idle'; }
+        else if (state === 'processing') { vadLabel.textContent = 'Translating…'; }
+    };
+
+    const connect = () => {
+        setWsStatus('connecting', 'Connecting…');
+        const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        socket = new WebSocket(`${proto}//${location.host}/ws`);
+        socket.binaryType = 'arraybuffer';
+
+        socket.onopen = () => setWsStatus('connected', 'Connected');
+        socket.onerror = (e) => { console.error('WS error', e); };
+        socket.onclose = () => {
+            setWsStatus('disconnected', 'Disconnected');
+            if (reconnectTimer) clearTimeout(reconnectTimer);
+            reconnectTimer = setTimeout(() => { reconnectTimer = null; connect(); }, 2000);
+        };
+        socket.onmessage = onMessage;
+    };
+
+    const onMessage = (event) => {
+        if (typeof event.data === 'string') {
+            let data;
+            try { data = JSON.parse(event.data); } catch (e) { return; }
+            handleEvent(data);
+        } else {
+            // Binary -> TTS audio. Use the most recent header (default 24 kHz).
+            const sampleRate = pendingAudioHeader?.sample_rate || 24000;
+            pendingAudioHeader = null;
+            const blob = pcmToWav(event.data, sampleRate, 1);
+            playBlob(blob);
+        }
+    };
+
+    // ---------------- Event handling ----------------
+    let currentUserMsg = null;
+    let currentBotMsg = null;
+
+    const addMessage = (kind, text = '') => {
+        const div = document.createElement('div');
+        div.classList.add('message', kind);
+        const lbl = document.createElement('span');
+        lbl.className = 'label';
+        lbl.textContent = kind === 'user-message' ? 'Source'
+                       : kind === 'bot-message'  ? 'Translation'
+                       : 'Info';
+        div.appendChild(lbl);
+        const txt = document.createElement('div');
+        txt.className = 'body';
+        txt.textContent = text;
+        div.appendChild(txt);
+        chat.appendChild(div);
+        chat.scrollTop = chat.scrollHeight;
+        return div;
+    };
+
+    const handleEvent = (data) => {
+        switch (data.type) {
+            case 'hello':
+                applyServerConfig(data.config);
+                if (!data.project_set) {
+                    addMessage('info-message',
+                        'GOOGLE_CLOUD_PROJECT is not set on the server. ' +
+                        'Enter one in the sidebar and click "Apply Settings".');
+                }
+                break;
+            case 'config_updated':
+                applyServerConfig(data.config);
+                addMessage('info-message',
+                    `Settings applied · region=${data.config.location} · ` +
+                    `${data.config.source_language_code} → ${data.config.target_language_code} · ` +
+                    `TTS ${data.config.tts_enabled ? 'on' : 'off'}`);
+                break;
+            case 'speech_start':
+                setVad('speech');
+                currentUserMsg = null;
+                currentBotMsg = null;
+                break;
+            case 'pause':
+                setVad('pause');
+                break;
+            case 'utterance_processing':
+                setVad('processing');
+                break;
+            case 'utterance_skipped':
+                setVad('idle');
+                break;
+            case 'input_transcription':
+                if (!currentUserMsg) currentUserMsg = addMessage('user-message');
+                currentUserMsg.querySelector('.body').textContent += data.text;
+                break;
+            case 'output_transcription':
+                if (!currentBotMsg) currentBotMsg = addMessage('bot-message');
+                currentBotMsg.querySelector('.body').textContent += data.text;
+                break;
+            case 'turn_complete':
+                currentUserMsg = null;
+                currentBotMsg = null;
+                setVad('idle');
+                break;
+            case 'audio_header':
+                pendingAudioHeader = data;
+                break;
+            case 'error':
+                addMessage('info-message', `⚠ Error${data.stage ? ' (' + data.stage + ')' : ''}: ${data.message}`);
+                break;
+        }
+    };
+
+    const applyServerConfig = (cfg) => {
+        if (!cfg) return;
+        if (cfg.project_id) projectInput.value = cfg.project_id;
+        if (cfg.location) regionSelect.value = cfg.location;
+        if (cfg.tts_location) ttsRegionSelect.value = cfg.tts_location;
+        if (cfg.tts_voice) ttsVoiceSelect.value = cfg.tts_voice;
+        if (typeof cfg.tts_enabled === 'boolean') ttsToggle.checked = cfg.tts_enabled;
+        if (cfg.source_language_code) srcLangSelect.value = cfg.source_language_code;
+        if (cfg.target_language_code) tgtLangSelect.value = cfg.target_language_code;
+    };
+
+    // ---------------- Audio capture ----------------
+    let audioContext = null;
+    let audioStream = null;
+    let workletNode = null;
+    let sourceNode = null;
+
+    const startRecording = async () => {
+        try {
+            audioStream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1 } });
+            audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+            await audioContext.audioWorklet.addModule('/static/audio-processor.js');
+            workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
+            workletNode.port.onmessage = (ev) => {
+                if (socket && socket.readyState === WebSocket.OPEN) {
+                    socket.send(ev.data);
+                }
+            };
+            sourceNode = audioContext.createMediaStreamSource(audioStream);
+            sourceNode.connect(workletNode);
+            // We do NOT connect to destination to avoid echoing the mic.
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            setVad('idle');
+        } catch (err) {
+            console.error(err);
+            addMessage('info-message', '⚠ Could not access microphone: ' + err.message);
+        }
+    };
+
+    const stopRecording = () => {
+        if (workletNode) { workletNode.disconnect(); workletNode = null; }
+        if (sourceNode)  { sourceNode.disconnect();  sourceNode = null; }
+        if (audioStream) { audioStream.getTracks().forEach(t => t.stop()); audioStream = null; }
+        if (audioContext){ audioContext.close(); audioContext = null; }
+        // Ask the server to flush the tail of the audio.
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ action: 'flush' }));
+        }
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+        setVad('idle');
+    };
+
+    startBtn.addEventListener('click', startRecording);
+    stopBtn.addEventListener('click', stopRecording);
+
+    applyBtn.addEventListener('click', () => {
+        if (!socket || socket.readyState !== WebSocket.OPEN) return;
+        const srcCode = srcLangSelect.value;
+        const tgtCode = tgtLangSelect.value;
+        const payload = {
+            action: 'update_config',
+            project_id: projectInput.value.trim() || null,
+            location: regionSelect.value,
+            tts_location: ttsRegionSelect.value,
+            tts_voice: ttsVoiceSelect.value,
+            tts_enabled: ttsToggle.checked,
+            source_language: srcLangSelect.options[srcLangSelect.selectedIndex].text,
+            source_language_code: srcCode,
+            target_language: tgtLangSelect.options[tgtLangSelect.selectedIndex].text,
+            target_language_code: tgtCode,
+        };
+        socket.send(JSON.stringify(payload));
+    });
+
+    // ---------------- PCM → WAV + playback ----------------
+    const audioPlaybackQueue = [];
+    let isPlaying = false;
+    const player = new Audio();
+    player.addEventListener('ended', () => {
+        isPlaying = false;
+        playNext();
+    });
+    const playBlob = (blob) => {
+        audioPlaybackQueue.push(URL.createObjectURL(blob));
+        playNext();
+    };
+    const playNext = () => {
+        if (isPlaying || audioPlaybackQueue.length === 0) return;
+        isPlaying = true;
+        player.src = audioPlaybackQueue.shift();
+        player.play().catch(err => {
+            console.warn('Playback failed:', err);
+            isPlaying = false;
+            // Drop this clip on failure (most likely autoplay block).
+            playNext();
+        });
+    };
+
+    function writeStr(view, off, s) {
+        for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i));
+    }
+    function pcmToWav(pcmBuffer, sampleRate, numChannels) {
+        const header = new ArrayBuffer(44);
+        const view = new DataView(header);
+        const len = pcmBuffer.byteLength;
+        writeStr(view, 0, 'RIFF');
+        view.setUint32(4, 36 + len, true);
+        writeStr(view, 8, 'WAVE');
+        writeStr(view, 12, 'fmt ');
+        view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true);
+        view.setUint16(22, numChannels, true);
+        view.setUint32(24, sampleRate, true);
+        view.setUint32(28, sampleRate * numChannels * 2, true);
+        view.setUint16(32, numChannels * 2, true);
+        view.setUint16(34, 16, true);
+        writeStr(view, 36, 'data');
+        view.setUint32(40, len, true);
+        const out = new Uint8Array(44 + len);
+        out.set(new Uint8Array(header), 0);
+        out.set(new Uint8Array(pcmBuffer), 44);
+        return new Blob([out], { type: 'audio/wav' });
+    }
+
+    // Kick everything off.
+    connect();
+    </script>
+</body>
+</html>

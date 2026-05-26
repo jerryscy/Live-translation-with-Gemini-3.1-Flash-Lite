@@ -1,0 +1,7 @@
+# Optional DeepFilterNet v3 acoustic VAD stack.
+# These three packages need PyTorch and (on macOS arm64) the Rust
+# toolchain to build `deepfilterlib` from source. See README.md
+# "DeepFilterNet v3 (optional)" for the prerequisites.
+torch
+torchaudio
+deepfilternet>=0.5.6

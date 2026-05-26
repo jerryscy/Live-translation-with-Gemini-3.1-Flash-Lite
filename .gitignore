@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+myenv/
+
+# Env
+.env
+
+# DeepFilterNet caches downloaded model weights here
+.cache/
+~/.cache/DeepFilterNet/
+
+# Editors
+.vscode/
+.idea/
+.DS_Store

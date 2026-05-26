@@ -1,0 +1,30 @@
+# Core backend
+fastapi
+uvicorn[standard]
+websockets
+python-dotenv
+numpy
+
+# Google AI / Vertex AI SDK
+google-genai
+
+# pyOpenSSL is required by google-auth's ALTS / gRPC stack on newer
+# Python versions (notably 3.13+). Without it the first Vertex AI call
+# fails with `ModuleNotFoundError: No module named 'OpenSSL'`.
+pyOpenSSL
+
+# DeepFilterNet v3 is NOT installed by default because its native
+# `deepfilterlib` core requires the Rust toolchain to compile on
+# platforms without prebuilt wheels (notably macOS Apple Silicon).
+# After installing the requirements below, run *one* of the following
+# to enable real DeepFilterNet v3 noise suppression for the VAD:
+#
+#     # Option A — install Rust first, then the wheel will build:
+#     brew install rust              # or: curl https://sh.rustup.rs -sSf | sh
+#     pip install -r requirements-vad.txt
+#
+#     # Option B — skip it entirely. The backend automatically falls
+#     # back to a raw-audio RMS VAD that needs no extra deps.
+#
+# Either way the app fully works; with DeepFilterNet enabled, the VAD
+# is much more robust to background noise.
